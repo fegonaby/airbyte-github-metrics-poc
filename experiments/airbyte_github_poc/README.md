@@ -44,7 +44,7 @@ The standard connector supplies PR-level `additions`, `deletions`, and `changed_
 
 ## Is a Databricks PyAirbyte cache supported?
 
-No. PyAirbyte `0.53.3` does not provide a Databricks or Delta cache backend. Its built-in SQL cache implementations are DuckDB, MotherDuck, Postgres, Snowflake, and BigQuery.
+PyAirbyte `0.53.3` does not provide a documented Databricks- or Delta-specific cache backend. Its public cache classes are DuckDB, MotherDuck, Postgres, Snowflake, and BigQuery. A low-level generic SQL cache configuration also exists, but Airbyte does not document it as a Databricks integration or guarantee Databricks Delta loading behavior through it.
 
 This is different from Airbyte's Databricks destination connector. The destination can load tables into Databricks, but it is not a PyAirbyte cache, and running that Java destination through PyAirbyte requires Docker. We are not using it.
 
@@ -68,8 +68,8 @@ We are not using Airbyte Cloud in this proof of concept because the current secu
 
 ## Official reading
 
-- [PyAirbyte cache and destination overview](https://airbytehq.github.io/PyAirbyte/airbyte.html#writing-to-sql-caches)
-- [PyAirbyte cache API and supported cache classes](https://airbytehq.github.io/PyAirbyte/airbyte/caches.html)
+- [PyAirbyte overview on Airbyte Docs](https://docs.airbyte.com/developers/pyairbyte)
+- [PyAirbyte cache API and cache classes](https://docs.airbyte.com/developers/pyairbyte/reference/airbyte/caches)
 - [Airbyte Cloud product overview](https://airbyte.com/product/airbyte-cloud)
 - [Airbyte GitHub source connector](https://docs.airbyte.com/integrations/sources/github)
 - [Airbyte Databricks destination connector](https://docs.airbyte.com/integrations/destinations/databricks)
