@@ -1,38 +1,18 @@
-# Airbyte GitHub capability proof of concept
+# Local Airbyte GitHub-to-DuckDB proof of concept
 
-## Decision
+## Scope
 
-This proof of concept uses no Docker and no Airbyte Cloud.
-
-- Locally, PyAirbyte runs the open-source GitHub source connector and persists records and connector state in a new DuckDB file.
-- In Databricks, a notebook/job will run the same Python GitHub source connector, convert the results to Spark DataFrames, and `MERGE` them into Delta tables.
-- Fetching happens only when the local command or Databricks job runs. Nothing runs continuously unless we later schedule the job.
-- Airbyte's Docker-based Databricks destination connector is not part of this design.
-
-The local DuckDB script is implemented. The Databricks notebook is the next implementation step documented below.
-
-## Architecture
-
-### Local capability test
+This is a small, manual capability test for the open-source Airbyte GitHub source connector.
 
 ```text
 GitHub
   -> PyAirbyte GitHub source connector
-  -> DuckDB cache and checkpoint state
+  -> new local DuckDB database
 ```
 
-### Databricks capability test
+The script runs only when you invoke it. It does not create a schedule or continuously fetch data, and it does not modify the original project's database or normalized tables.
 
-```text
-Scheduled or manually triggered Databricks notebook
-  -> GitHub PAT from Databricks Secrets
-  -> PyAirbyte GitHub source connector
-  -> temporary per-run records on the driver
-  -> Spark MERGE
-  -> persistent Unity Catalog Delta tables
-```
-
-The intended raw Delta tables are:
+The test is limited to one repository and five useful streams:
 
 - `repositories`
 - `pull_requests`
@@ -40,42 +20,24 @@ The intended raw Delta tables are:
 - `reviews`
 - `review_comments`
 
-The standard connector supplies PR-level `additions`, `deletions`, and `changed_files`. It does not expose a pull-request-files stream, so path-filtered or per-file LOC remains custom project logic.
+It demonstrates:
 
-## Is a Databricks PyAirbyte cache supported?
+- Connector installation and credential checks
+- Catalog discovery and stream selection
+- GitHub pagination, retry, and rate-limit behavior
+- Typed DuckDB table creation
+- Persistent connector state between local runs
+- PR-level `additions`, `deletions`, and `changed_files`
 
-PyAirbyte `0.53.3` does not provide a documented Databricks- or Delta-specific cache backend. Its public cache classes are DuckDB, MotherDuck, Postgres, Snowflake, and BigQuery. A low-level generic SQL cache configuration also exists, but Airbyte does not document it as a Databricks integration or guarantee Databricks Delta loading behavior through it.
-
-This is different from Airbyte's Databricks destination connector. The destination can load tables into Databricks, but it is not a PyAirbyte cache, and running that Java destination through PyAirbyte requires Docker. We are not using it.
-
-Databricks also has a feature called disk cache, formerly Delta cache. That cache accelerates repeated reads of Parquet and Delta files. It does not store GitHub connector checkpoints and does not control incremental ingestion.
-
-For the first Databricks notebook test, we will avoid a durable PyAirbyte cache:
-
-1. Fetch a small recent window, initially 30 days for one repository.
-2. Stage the current run temporarily on the Databricks driver.
-3. Use stable record keys to `MERGE` into the raw Delta tables.
-4. Rerun the same window to prove the merge is idempotent.
-5. Add a small Delta `sync_state` table and overlap window only if the connector proves useful.
-
-The raw Delta tables are durable storage. They are not a cache.
-
-## What is Airbyte Cloud?
-
-Airbyte Cloud is Airbyte's fully managed hosted service. You configure source and destination credentials, and Airbyte operates the infrastructure that runs manual or scheduled syncs.
-
-We are not using Airbyte Cloud in this proof of concept because the current security assumption is that an external managed service should not receive the GitHub or Databricks credentials or fetch the organization data. Running the open-source Python connector inside our local environment or Databricks keeps execution under our control.
+It does not test path-filtered or per-file LOC because the standard connector does not expose a pull-request-files stream.
 
 ## Official reading
 
-- [PyAirbyte overview on Airbyte Docs](https://docs.airbyte.com/developers/pyairbyte)
-- [PyAirbyte cache API and cache classes](https://docs.airbyte.com/developers/pyairbyte/reference/airbyte/caches)
-- [Airbyte Cloud product overview](https://airbyte.com/product/airbyte-cloud)
+- [PyAirbyte overview](https://docs.airbyte.com/developers/pyairbyte)
+- [PyAirbyte cache API](https://docs.airbyte.com/developers/pyairbyte/reference/airbyte/caches)
 - [Airbyte GitHub source connector](https://docs.airbyte.com/integrations/sources/github)
-- [Airbyte Databricks destination connector](https://docs.airbyte.com/integrations/destinations/databricks)
-- [Databricks disk cache](https://docs.databricks.com/aws/en/optimizations/disk-cache)
 
-## Versions used
+## Versions
 
 - PyAirbyte `0.53.3`
 - GitHub source connector `2.1.41`
@@ -83,9 +45,9 @@ We are not using Airbyte Cloud in this proof of concept because the current secu
 
 Python `3.9` is not supported by this PyAirbyte version.
 
-## Run the local DuckDB test
+## 1. Create an isolated environment
 
-From the repository root, create an isolated environment:
+From the repository root:
 
 ```bash
 uv venv --python 3.11 .venv-airbyte
@@ -93,7 +55,11 @@ source .venv-airbyte/bin/activate
 uv pip install -r experiments/airbyte_github_poc/requirements.txt
 ```
 
-Configure one repository and a GitHub PAT that can read it:
+The first execution is slower because PyAirbyte installs the pinned GitHub connector in its own environment.
+
+## 2. Configure one repository
+
+Create or use a GitHub PAT that can read the selected repository:
 
 ```bash
 export GITHUB_PERSONAL_ACCESS_TOKEN='replace-me'
@@ -101,37 +67,57 @@ export AIRBYTE_GITHUB_REPOSITORY='fegonaby/github-analysis'
 export AIRBYTE_GITHUB_START_DATE='2026-01-01T00:00:00Z'
 ```
 
-For GitHub Enterprise Server, also configure its base URL:
+For GitHub Enterprise Server, also set its base URL:
 
 ```bash
 export AIRBYTE_GITHUB_API_URL='https://github.company.example'
 ```
 
-Discover the connector catalog without loading records:
+The optional example configuration is in `env.example`. To load your own `.env` file:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+Do not commit `.env`; it is ignored by Git.
+
+## 3. Discover the connector catalog
+
+This checks the token and prints every stream exposed by the installed connector without loading records:
 
 ```bash
 python experiments/airbyte_github_poc/sync_to_duckdb.py --discover-only
 ```
 
-Run the selected streams:
+## 4. Load the selected streams
 
 ```bash
 python experiments/airbyte_github_poc/sync_to_duckdb.py
 ```
 
-The script creates a separate database at:
+The script creates a separate database:
 
 ```text
 output/airbyte_poc/github_local.duckdb
 ```
 
-Run the same command again to exercise the saved connector state. To request a clean historical read, use:
+The selected tables are written under the `github_raw` schema. The command prints record counts, generated columns, and sample records.
+
+Run the same command again to exercise the saved connector state:
+
+```bash
+python experiments/airbyte_github_poc/sync_to_duckdb.py
+```
+
+Request a clean historical read without changing the default database path:
 
 ```bash
 python experiments/airbyte_github_poc/sync_to_duckdb.py --force-full-refresh
 ```
 
-Inspect the database manually:
+## 5. Inspect DuckDB manually
 
 ```bash
 python - <<'PY'
@@ -139,36 +125,54 @@ import duckdb
 
 con = duckdb.connect('output/airbyte_poc/github_local.duckdb', read_only=True)
 print(con.sql('SHOW TABLES FROM github_raw'))
-print(con.sql('SELECT repository, number, additions, deletions, changed_files, updated_at FROM github_raw.pull_request_stats ORDER BY updated_at DESC LIMIT 10'))
+print(con.sql('''
+    SELECT repository, number, additions, deletions, changed_files, updated_at
+    FROM github_raw.pull_request_stats
+    ORDER BY updated_at DESC
+    LIMIT 10
+'''))
 con.close()
 PY
 ```
 
-## Databricks notebook implementation plan
+The connector loads pull requests for the repository rather than restricting them to `main` or `master`. Apply the base-branch condition later when querying the results.
 
-The notebook will:
+## 6. What to record during the test
 
-1. Install or use a cluster-installed pinned PyAirbyte package.
-2. Read `GITHUB_PERSONAL_ACCESS_TOKEN` from a Databricks secret scope.
-3. Accept repository, start date, catalog, and schema as job parameters.
-4. Run the five selected GitHub streams only when the notebook executes.
-5. Convert each result stream into a Spark DataFrame.
-6. Create raw Delta tables when absent.
-7. `MERGE` records using stream-specific stable keys so reruns update records instead of duplicating them.
-8. Print fetched, inserted, and updated record counts for comparison with the local run.
+- First-time connector installation duration
+- Discovered and selected streams
+- Total execution time
+- Record count per stream
+- Columns and nested-field representation
+- GitHub retry or rate-limit log messages
+- Difference between the first and second run
+- A comparison of PR statistics with the GitHub UI
+- Whether the absence of per-file data is acceptable
 
-Because the notebook runs inside Databricks, it does not need a Databricks PAT to write tables. It uses the identity assigned to the notebook or job compute. That identity needs permission to create or modify the selected catalog and schema.
+## Optional arguments
 
-## What to evaluate
+Use a different repository without changing the environment:
 
-- Connector installation and discovery time
-- Available versus selected streams
-- Total API/runtime for the selected streams
-- Record counts and inferred schemas
-- GitHub rate-limit and retry messages
-- PR statistics compared with the GitHub UI
-- Behavior when the same local sync or Delta merge runs twice
-- Whether the lack of per-file PR data is acceptable
+```bash
+python experiments/airbyte_github_poc/sync_to_duckdb.py \
+  --repository owner/repository
+```
+
+Select fewer streams:
+
+```bash
+python experiments/airbyte_github_poc/sync_to_duckdb.py \
+  --streams pull_requests,pull_request_stats
+```
+
+Use a separate database file:
+
+```bash
+python experiments/airbyte_github_poc/sync_to_duckdb.py \
+  --db output/airbyte_poc/another_repository.duckdb
+```
+
+After the one-repository test, `owner/*` can be used to inspect organization-wide behavior. Expect a longer run and higher API usage.
 
 ## Troubleshooting
 
@@ -187,3 +191,12 @@ Move `AIRBYTE_GITHUB_START_DATE` farther into the past and verify that the repos
 ### GitHub Enterprise connection fails
 
 Confirm `AIRBYTE_GITHUB_API_URL` is the enterprise base URL expected by the connector and that the runner trusts the enterprise TLS certificate.
+
+### Start over without deleting the result
+
+Move the generated database aside, then rerun the command:
+
+```bash
+mv output/airbyte_poc/github_local.duckdb \
+   output/airbyte_poc/github_local.previous.duckdb
+```
