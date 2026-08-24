@@ -1,0 +1,31 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+config.py
+
+# Python environments and generated files
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# PyAirbyte connector environments and caches
+.cache/
+.airbyte/
+
+# Proof-of-concept output and databases
+output/
+*.duckdb
+*.duckdb.wal
+*.db
+*.log
+pr_loc_metrics.json
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
