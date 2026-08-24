@@ -119,23 +119,15 @@ Prerequisites:
 - The principal can create schemas, tables, and Unity Catalog Volumes in the target catalog.
 - You have reviewed and accepted the Databricks JDBC/ODBC driver license.
 
-Configure the destination using OAuth machine-to-machine credentials:
+Configure the destination with a Databricks personal access token. This is a separate token from `GITHUB_PERSONAL_ACCESS_TOKEN`:
 
 ```bash
 export DATABRICKS_SERVER_HOSTNAME='abc-12345678-wxyz.cloud.databricks.com'
 export DATABRICKS_HTTP_PATH='sql/1.0/warehouses/0000-1111111-abcd90'
 export DATABRICKS_CATALOG='main'
 export DATABRICKS_SCHEMA='github_airbyte_poc'
-export DATABRICKS_CLIENT_ID='replace-me'
-export DATABRICKS_CLIENT_SECRET='replace-me'
-export AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS='true'
-```
-
-For a short-lived test, a Databricks PAT can be used instead:
-
-```bash
-unset DATABRICKS_CLIENT_ID DATABRICKS_CLIENT_SECRET
 export DATABRICKS_TOKEN='replace-me'
+export AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS='true'
 ```
 
 Run the end-to-end source-to-destination sync:

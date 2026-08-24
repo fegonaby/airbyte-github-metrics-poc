@@ -108,27 +108,6 @@ def build_databricks_config(env: Mapping[str, str]) -> Dict[str, object]:
             "Databricks JDBC/ODBC driver license."
         )
 
-    client_id = env.get("DATABRICKS_CLIENT_ID", "").strip()
-    client_secret = env.get("DATABRICKS_CLIENT_SECRET", "").strip()
-    personal_access_token = env.get("DATABRICKS_TOKEN", "").strip()
-
-    if client_id and client_secret:
-        authentication: Dict[str, str] = {
-            "auth_type": "OAUTH",
-            "client_id": client_id,
-            "secret": client_secret,
-        }
-    elif personal_access_token:
-        authentication = {
-            "auth_type": "BASIC",
-            "personal_access_token": personal_access_token,
-        }
-    else:
-        raise ConfigurationError(
-            "Set DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET, or set "
-            "DATABRICKS_TOKEN."
-        )
-
     return {
         "hostname": require_value(
             env.get("DATABRICKS_SERVER_HOSTNAME"),
@@ -147,7 +126,13 @@ def build_databricks_config(env: Mapping[str, str]) -> Dict[str, object]:
             env.get("DATABRICKS_SCHEMA", "github_airbyte_poc"),
             "DATABRICKS_SCHEMA",
         ),
-        "authentication": authentication,
+        "authentication": {
+            "auth_type": "BASIC",
+            "personal_access_token": require_value(
+                env.get("DATABRICKS_TOKEN"),
+                "DATABRICKS_TOKEN",
+            ),
+        },
         "purge_staging_data": True,
         "accept_terms": True,
         "cdc_deletion_mode": "Hard delete",

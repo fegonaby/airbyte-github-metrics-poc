@@ -39,18 +39,17 @@ class CommonConfigurationTests(unittest.TestCase):
             ["pull_requests", "reviews"],
         )
 
-    def test_builds_oauth_databricks_config(self) -> None:
+    def test_builds_pat_databricks_config(self) -> None:
         config = build_databricks_config(
             {
                 "AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS": "true",
                 "DATABRICKS_SERVER_HOSTNAME": "workspace.cloud.databricks.com",
                 "DATABRICKS_HTTP_PATH": "sql/1.0/warehouses/abc",
                 "DATABRICKS_CATALOG": "main",
-                "DATABRICKS_CLIENT_ID": "client",
-                "DATABRICKS_CLIENT_SECRET": "secret",
+                "DATABRICKS_TOKEN": "secret",
             }
         )
-        self.assertEqual(config["authentication"]["auth_type"], "OAUTH")  # type: ignore[index]
+        self.assertEqual(config["authentication"]["auth_type"], "BASIC")  # type: ignore[index]
         self.assertEqual(config["schema"], "github_airbyte_poc")
 
     def test_requires_databricks_terms_acceptance(self) -> None:
