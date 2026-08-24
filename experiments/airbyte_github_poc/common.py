@@ -6,13 +6,11 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Optional
 
 
 PYAIRBYTE_VERSION = "0.53.3"
 GITHUB_SOURCE_VERSION = "2.1.41"
-DATABRICKS_DESTINATION_IMAGE = "airbyte/destination-databricks:4.0.2"
-
 DEFAULT_STREAMS = [
     "repositories",
     "pull_requests",
@@ -97,46 +95,6 @@ def build_github_config(
     if api_url and api_url.strip():
         config["api_url"] = api_url.strip()
     return config
-
-
-def build_databricks_config(env: Mapping[str, str]) -> Dict[str, object]:
-    """Build the current destination-databricks connector configuration."""
-    accepted = env.get("AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS", "").lower()
-    if accepted not in {"1", "true", "yes"}:
-        raise ConfigurationError(
-            "Set AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS=true after reviewing the "
-            "Databricks JDBC/ODBC driver license."
-        )
-
-    return {
-        "hostname": require_value(
-            env.get("DATABRICKS_SERVER_HOSTNAME"),
-            "DATABRICKS_SERVER_HOSTNAME",
-        ),
-        "http_path": require_value(
-            env.get("DATABRICKS_HTTP_PATH"),
-            "DATABRICKS_HTTP_PATH",
-        ),
-        "port": require_value(env.get("DATABRICKS_PORT", "443"), "DATABRICKS_PORT"),
-        "database": require_value(
-            env.get("DATABRICKS_CATALOG"),
-            "DATABRICKS_CATALOG",
-        ),
-        "schema": require_value(
-            env.get("DATABRICKS_SCHEMA", "github_airbyte_poc"),
-            "DATABRICKS_SCHEMA",
-        ),
-        "authentication": {
-            "auth_type": "BASIC",
-            "personal_access_token": require_value(
-                env.get("DATABRICKS_TOKEN"),
-                "DATABRICKS_TOKEN",
-            ),
-        },
-        "purge_staging_data": True,
-        "accept_terms": True,
-        "cdc_deletion_mode": "Hard delete",
-    }
 
 
 def ensure_parent(path: str) -> Path:

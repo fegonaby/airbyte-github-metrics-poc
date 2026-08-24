@@ -6,7 +6,6 @@ import unittest
 
 from common import (
     ConfigurationError,
-    build_databricks_config,
     build_github_config,
     parse_streams,
 )
@@ -38,36 +37,6 @@ class CommonConfigurationTests(unittest.TestCase):
             parse_streams("pull_requests, reviews,pull_requests"),
             ["pull_requests", "reviews"],
         )
-
-    def test_builds_pat_databricks_config(self) -> None:
-        config = build_databricks_config(
-            {
-                "AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS": "true",
-                "DATABRICKS_SERVER_HOSTNAME": "workspace.cloud.databricks.com",
-                "DATABRICKS_HTTP_PATH": "sql/1.0/warehouses/abc",
-                "DATABRICKS_CATALOG": "main",
-                "DATABRICKS_TOKEN": "secret",
-            }
-        )
-        self.assertEqual(config["authentication"]["auth_type"], "BASIC")  # type: ignore[index]
-        self.assertEqual(config["schema"], "github_airbyte_poc")
-
-    def test_requires_databricks_terms_acceptance(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            build_databricks_config({})
-
-    def test_rejects_blank_databricks_schema(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            build_databricks_config(
-                {
-                    "AIRBYTE_ACCEPT_DATABRICKS_JDBC_TERMS": "true",
-                    "DATABRICKS_SERVER_HOSTNAME": "workspace.cloud.databricks.com",
-                    "DATABRICKS_HTTP_PATH": "sql/1.0/warehouses/abc",
-                    "DATABRICKS_CATALOG": "main",
-                    "DATABRICKS_SCHEMA": " ",
-                    "DATABRICKS_TOKEN": "secret",
-                }
-            )
 
 
 if __name__ == "__main__":
